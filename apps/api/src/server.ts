@@ -5,6 +5,7 @@ import { deliverOutbox } from './notify/outbox.ts';
 import { senderFromEnv } from './notify/senders.ts';
 import { whatsAppSenderFromEnv } from './notify/whatsapp.ts';
 import { whatsappEnabled } from './notify/outbox.ts';
+import { deliverChannelOutbox } from './channel/sync.ts';
 
 const pool = createPool(
   process.env.DATABASE_URL ?? 'postgres://midotel_app:midotel_dev_app@localhost:5433/midotel',
@@ -36,6 +37,18 @@ const mailer = setInterval(() => {
     .finally(() => (delivering = false));
 }, 5_000);
 mailer.unref();
+
+// Push prices, availability and bookings to channel managers.
+let syncing = false;
+const channelSync = setInterval(() => {
+  if (syncing) return;
+  syncing = true;
+  deliverChannelOutbox(pool)
+    .then((r) => (r.sent || r.failed) && app.log.info(r, 'channel sync'))
+    .catch((err) => app.log.error(err, 'channel sync failed'))
+    .finally(() => (syncing = false));
+}, 5_000);
+channelSync.unref();
 
 const shutdown = async () => {
   await app.close();

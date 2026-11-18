@@ -9,6 +9,7 @@ import { RatePlans } from '@/components/RatePlans';
 import { RatesCalendar } from '@/components/RatesCalendar';
 import { Reservations } from '@/components/Reservations';
 import { PaymentSettings } from '@/components/PaymentSettings';
+import { ChannelManager } from '@/components/ChannelManager';
 
 const TABS = [
   ['reservations', 'Reservations'],
@@ -17,6 +18,7 @@ const TABS = [
   ['rooms', 'Rooms'],
   ['website', 'Website'],
   ['payments', 'Payments'],
+  ['channels', 'Channel manager'],
   ['details', 'Hotel details'],
 ] as const;
 type Tab = (typeof TABS)[number][0];
@@ -53,6 +55,7 @@ function PropertyPage({ id }: { id: string }) {
       {tab === 'rates' && <RatesCalendar propertyId={id} />}
       {tab === 'plans' && <RatePlans propertyId={id} />}
       {tab === 'payments' && <PaymentSettings propertyId={id} />}
+      {tab === 'channels' && <ChannelManager propertyId={id} />}
     </>
   );
 }

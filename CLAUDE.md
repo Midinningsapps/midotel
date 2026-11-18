@@ -56,6 +56,13 @@ Architecture doc (source of truth for design decisions): https://claude.ai/artif
 - Templates in `apps/api/src/notify/templates.ts`; every guest-typed value is HTML-escaped.
 - WhatsApp: only for guests who opted in (`booking.whatsapp_opt_in`), via Meta Cloud API templates (`docs/whatsapp-templates.md`, wording must match `notify/whatsapp.ts`); locally saved to `.data/whatsapp`.
 
+## Channel manager
+- See `docs/channel-manager.md`. Code in `apps/api/src/channel/` (types, OTA XML drafts, adapters, sync); routes in `routes/channels.ts`.
+- Rate/inventory edits call `queueAri`; booking confirm/cancel calls `queueBookingPush`. Delivery runs every 5 s.
+- eZee and STAAH adapters are drafts (`certified: false`) until their specs are implemented and certified.
+- Known gap: expired pay-now holds do not trigger an availability push (next rate change or full sync corrects it).
+- zod: never call `.partial()` on a schema with `.default()` for PATCH bodies; defaults would overwrite stored values.
+
 ## Conventions
 - TypeScript strict. Validate request bodies with zod. Money as integer minor units (paise) when pricing arrives.
 - Migrations are append-only: never edit an applied migration; add `NNNN_name.sql`.

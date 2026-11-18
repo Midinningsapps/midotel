@@ -213,4 +213,14 @@ describe('booking engine', () => {
     // Put the demo gateway back for other tests.
     await api('PUT', `/properties/${owner.propertyId}/gateway`, { provider: 'demo', payAtHotel: true });
   });
+
+  it('partial updates keep fields that were not sent', async () => {
+    const off = await api('PATCH', `/rate-plans/${baseId}`, { isActive: false });
+    expect(off.json()).toMatchObject({ isActive: false, mealPlan: 'CP' });
+    await api('PATCH', `/rate-plans/${baseId}`, { isActive: true });
+    const policies = (await api('GET', `/properties/${owner.propertyId}/cancellation-policies`)).json();
+    const std = policies.find((p: { name: string }) => p.name === 'Standard');
+    const renamed = await api('PATCH', `/cancellation-policies/${std.id}`, { name: 'Standard (renamed)' });
+    expect(renamed.json().rules).toHaveLength(2);
+  });
 });

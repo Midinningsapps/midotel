@@ -22,6 +22,9 @@ interface Booking {
   paymentMode: 'pay_now' | 'pay_at_hotel';
   cancelPenalty: number | null;
   createdAt: string;
+  source: 'website' | 'desk' | 'channel';
+  channelName: string | null;
+  externalReference: string | null;
   rooms: { roomName: string; ratePlanName: string; adults: number; children: number }[];
 }
 interface Detail extends Booking {
@@ -168,14 +171,17 @@ export function Reservations({ propertyId }: { propertyId: string }) {
             <tbody>
               {rows.map((b) => (
                 <tr key={b.id} className="clickable" onClick={() => show(b.id)}>
-                  <td>{b.reference}</td>
+                  <td>
+                    {b.reference}
+                    {b.source === 'channel' && <div className="mini">{b.channelName ?? 'OTA'} {b.externalReference}</div>}
+                  </td>
                   <td>{b.guestName}</td>
                   <td>
                     {shortDate(b.checkIn)} to {shortDate(b.checkOut)}
                   </td>
                   <td>{b.rooms.map((r) => r.roomName).join(', ')}</td>
                   <td>{rupees(b.total)}</td>
-                  <td>{b.paymentMode === 'pay_at_hotel' ? 'At hotel' : b.paid >= b.total ? 'Paid' : 'Online, unpaid'}</td>
+                  <td>{b.source === 'channel' ? 'Via OTA' : b.paymentMode === 'pay_at_hotel' ? 'At hotel' : b.paid >= b.total ? 'Paid' : 'Online, unpaid'}</td>
                   <td>
                     <span className={`badge ${b.status === 'confirmed' ? 'live' : ''}`}>{LABEL[b.status]}</span>
                   </td>

@@ -265,6 +265,9 @@ export const booking = pgTable('booking', {
   holdExpiresAt: ts('hold_expires_at'),
   manageTokenHash: text('manage_token_hash').notNull(),
   whatsappOptIn: boolean('whatsapp_opt_in').notNull().default(false),
+  channelConnectionId: uuid('channel_connection_id'),
+  channelName: text('channel_name'),
+  externalReference: text('external_reference'),
   cancelPenalty: integer('cancel_penalty'),
   cancelledAt: ts('cancelled_at'),
   confirmedAt: ts('confirmed_at'),
@@ -338,6 +341,63 @@ export const messageOutbox = pgTable('message_outbox', {
   sentAt: ts('sent_at'),
   providerMessageId: text('provider_message_id'),
   payload: jsonb('payload').$type<WhatsAppPayload | null>(),
+  createdAt: ts('created_at').notNull().defaultNow(),
+});
+
+export const channelConnection = pgTable('channel_connection', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  tenantId: uuid('tenant_id').notNull(),
+  propertyId: uuid('property_id').notNull(),
+  provider: text('provider', { enum: ['ezee', 'staah', 'simulator'] }).notNull(),
+  hotelCode: text('hotel_code').notNull(),
+  endpointUrl: text('endpoint_url'),
+  credentialsEnc: text('credentials_enc'),
+  inboundTokenHash: text('inbound_token_hash').notNull(),
+  master: text('master', { enum: ['channel_manager', 'midotel'] }).notNull().default('channel_manager'),
+  isActive: boolean('is_active').notNull().default(false),
+  lastSuccessAt: ts('last_success_at'),
+  lastError: text('last_error'),
+  createdAt: ts('created_at').notNull().defaultNow(),
+  updatedAt: ts('updated_at').notNull().defaultNow(),
+});
+
+export const channelRoomMap = pgTable('channel_room_map', {
+  connectionId: uuid('connection_id').notNull(),
+  tenantId: uuid('tenant_id').notNull(),
+  roomTypeId: uuid('room_type_id').notNull(),
+  externalCode: text('external_code').notNull(),
+});
+
+export const channelRateMap = pgTable('channel_rate_map', {
+  connectionId: uuid('connection_id').notNull(),
+  tenantId: uuid('tenant_id').notNull(),
+  roomTypeId: uuid('room_type_id').notNull(),
+  ratePlanId: uuid('rate_plan_id').notNull(),
+  externalCode: text('external_code').notNull(),
+});
+
+export const channelOutbox = pgTable('channel_outbox', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  tenantId: uuid('tenant_id').notNull(),
+  connectionId: uuid('connection_id').notNull(),
+  kind: text('kind', { enum: ['ari', 'booking'] }).notNull(),
+  payload: jsonb('payload').$type<{ roomTypeIds?: string[]; from?: string; to?: string; bookingId?: string }>().notNull(),
+  status: text('status', { enum: ['pending', 'sending', 'sent', 'failed'] }).notNull().default('pending'),
+  attempts: smallint('attempts').notNull().default(0),
+  lastError: text('last_error'),
+  sendAfter: ts('send_after').notNull().defaultNow(),
+  sentAt: ts('sent_at'),
+  createdAt: ts('created_at').notNull().defaultNow(),
+});
+
+export const channelInboundLog = pgTable('channel_inbound_log', {
+  id: bigserial('id', { mode: 'number' }).primaryKey(),
+  tenantId: uuid('tenant_id').notNull(),
+  connectionId: uuid('connection_id').notNull(),
+  kind: text('kind').notNull(),
+  outcome: text('outcome').notNull(),
+  detail: text('detail'),
+  body: text('body').notNull(),
   createdAt: ts('created_at').notNull().defaultNow(),
 });
 

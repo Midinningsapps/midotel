@@ -8,6 +8,7 @@ import { audit } from '../audit.ts';
 import { cancelBooking, loadBookingRooms } from '../booking/service.ts';
 import { gatewayFor, refundPayments } from './public-booking.ts';
 import { queueCancellation } from '../notify/outbox.ts';
+import { queueBookingPush } from '../channel/sync.ts';
 
 const STAFF: Role[] = ['owner', 'manager', 'front_desk'];
 
@@ -68,6 +69,10 @@ export async function bookingRoutes(app: FastifyInstance) {
       const refunded = result.refund > 0 ? await refundPayments(db, b, result.refund, await gatewayFor(db, b.propertyId)) : 0;
       await audit(db, { tenantId: auth.tenantId, userId: auth.userId, action: 'cancel', entity: 'booking', entityId: id, data: { ...result, refunded } });
       await queueCancellation(db, b.id, refunded, body.notifyGuest);
+      if (b.status === 'confirmed') {
+        const [fresh] = await db.select().from(schema.booking).where(eq(schema.booking.id, b.id));
+        await queueBookingPush(db, fresh!);
+      }
       return { ...result, refunded };
     });
   });

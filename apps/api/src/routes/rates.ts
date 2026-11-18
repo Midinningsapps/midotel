@@ -6,6 +6,7 @@ import { assertProperty, assertPropertyExists, HttpError, requireAuth, type Role
 import { audit } from '../audit.ts';
 import { addDays, daysBetween, describePolicy, isDate, stayNights } from '../booking/pricing.ts';
 import { encryptSecret, maskKey } from '../crypto.ts';
+import { queueAri } from '../channel/sync.ts';
 
 const REVENUE: Role[] = ['owner', 'manager'];
 const day = z.string().refine(isDate, 'Use YYYY-MM-DD');
@@ -16,24 +17,31 @@ const Rule = z.object({
   penaltyType: z.enum(['percent', 'nights']),
   value: z.number().int().min(1).max(100),
 });
-const PolicyBody = z.object({
+// Field definitions without defaults, so partial updates never reset fields that were left out.
+const PolicyFields = z.object({
   name: z.string().trim().min(1).max(80),
   description: z.string().trim().max(1000).nullable().optional(),
-  rules: z.array(Rule).max(10).default([]),
-  isNonRefundable: z.boolean().default(false),
+  rules: z.array(Rule).max(10),
+  isNonRefundable: z.boolean(),
 });
+const PolicyBody = PolicyFields.extend({ rules: PolicyFields.shape.rules.default([]), isNonRefundable: z.boolean().default(false) });
 
-const PlanBody = z.object({
+const PlanFields = z.object({
   name: z.string().trim().min(1).max(80),
   code: z.string().trim().toUpperCase().regex(/^[A-Z0-9_-]{1,20}$/),
   description: z.string().trim().max(1000).nullable().optional(),
-  mealPlan: z.enum(['EP', 'CP', 'MAP', 'AP']).default('EP'),
+  mealPlan: z.enum(['EP', 'CP', 'MAP', 'AP']),
   cancellationPolicyId: z.uuid().nullable().optional(),
   parentId: z.uuid().nullable().optional(),
   deriveKind: z.enum(['percent', 'amount']).nullable().optional(),
   deriveValue: z.number().int().min(-100_000_000).max(100_000_000).nullable().optional(),
+  isActive: z.boolean(),
+  sortOrder: z.number().int().min(0).max(10000),
+});
+const PlanBody = PlanFields.extend({
+  mealPlan: PlanFields.shape.mealPlan.default('EP'),
   isActive: z.boolean().default(true),
-  sortOrder: z.number().int().min(0).max(10000).default(0),
+  sortOrder: PlanFields.shape.sortOrder.default(0),
 });
 
 const CalendarUpdate = z
@@ -90,7 +98,7 @@ export async function rateRoutes(app: FastifyInstance) {
   app.patch<{ Params: { id: string } }>('/cancellation-policies/:id', async (req) => {
     const auth = requireAuth(req);
     const id = z.uuid().parse(req.params.id);
-    const body = PolicyBody.partial().parse(req.body);
+    const body = PolicyFields.partial().parse(req.body);
     return withTenant(pool, auth.tenantId, async (db) => {
       const [cur] = await db.select().from(schema.cancellationPolicy).where(eq(schema.cancellationPolicy.id, id));
       if (!cur) throw new HttpError(404, 'Policy not found');
@@ -112,7 +120,7 @@ export async function rateRoutes(app: FastifyInstance) {
     });
   });
 
-  async function checkPlanRefs(db: import('@midotel/db').Db, propertyId: string, body: Partial<z.infer<typeof PlanBody>>, selfId?: string) {
+  async function checkPlanRefs(db: import('@midotel/db').Db, propertyId: string, body: Partial<z.infer<typeof PlanFields>>, selfId?: string) {
     const derived = body.parentId != null;
     if (derived !== (body.deriveKind != null) || derived !== (body.deriveValue != null)) {
       throw new HttpError(400, 'A derived plan needs a parent plan, a kind (percent or amount) and a value');
@@ -151,7 +159,7 @@ export async function rateRoutes(app: FastifyInstance) {
   app.patch<{ Params: { id: string } }>('/rate-plans/:id', async (req) => {
     const auth = requireAuth(req);
     const id = z.uuid().parse(req.params.id);
-    const body = PlanBody.partial().parse(req.body);
+    const body = PlanFields.partial().parse(req.body);
     return withTenant(pool, auth.tenantId, async (db) => {
       const [cur] = await db.select().from(schema.ratePlan).where(eq(schema.ratePlan.id, id));
       if (!cur) throw new HttpError(404, 'Rate plan not found');
@@ -274,6 +282,7 @@ export async function rateRoutes(app: FastifyInstance) {
         }
       }
       await audit(db, { tenantId: auth.tenantId, userId: auth.userId, action: 'update', entity: 'calendar', entityId: propertyId, data: { ...body, days: dates.length } });
+      await queueAri(db, propertyId, rooms.map((r) => r.id), dates[0]!, dates[dates.length - 1]!);
       return { updatedDays: dates.length };
     });
   });

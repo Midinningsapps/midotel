@@ -75,10 +75,11 @@ const firstName = (n: string) => n.trim().split(/\s+/)[0] ?? n;
 const shortDay = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
 
 /** Booking confirmed (pay at hotel, or payment received): email the guest and alert the hotel. */
-export async function queueConfirmation(db: Db, bookingId: string, manageToken: string | null) {
+export async function queueConfirmation(db: Db, bookingId: string, manageToken: string | null, opts: { guest?: boolean } = {}) {
   const { b, p, booking, hotel } = await context(db, bookingId);
   const manageUrl = manageToken ? `${bookingBase()}/booking/${b.reference}?token=${encodeURIComponent(manageToken)}` : null;
-  await enqueue(db, b, p.name, p.email, 'guest_confirmation', b.guestEmail, guestConfirmation(booking, hotel, { manageUrl, policyText: describePolicy(b.cancellationPolicy) }));
+  if (opts.guest !== false) {
+    await enqueue(db, b, p.name, p.email, 'guest_confirmation', b.guestEmail, guestConfirmation(booking, hotel, { manageUrl, policyText: describePolicy(b.cancellationPolicy) }));
   const nights = Math.round((Date.parse(b.checkOut) - Date.parse(b.checkIn)) / 864e5);
   await enqueueWhatsApp(db, b, p.name, 'booking_confirmed', [
     firstName(b.guestName),
@@ -89,6 +90,7 @@ export async function queueConfirmation(db: Db, bookingId: string, manageToken: 
     b.total > b.paid ? `${money(b.total, b.currency)} (${money(b.total - b.paid, b.currency)} to pay at the hotel)` : `${money(b.total, b.currency)}, paid`,
     manageUrl ?? (p.phone ? `call ${p.phone}` : '-'),
   ]);
+  }
   for (const to of p.notificationEmails) {
     await enqueue(db, b, 'Midotel', b.guestEmail, 'hotel_new_booking', to, hotelAlert(booking, hotel, 'new', { adminUrl: `${adminBase()}/properties/${p.id}` }));
   }
