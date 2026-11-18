@@ -196,6 +196,7 @@ export async function createBooking(
     selections: Selection[];
     guest: Guest;
     paymentMode: 'pay_now' | 'pay_at_hotel';
+    whatsappOptIn?: boolean;
     source: 'website' | 'desk';
     now?: Date;
   },
@@ -274,6 +275,7 @@ export async function createBooking(
       holdExpiresAt: confirmed ? null : new Date(now.getTime() + HOLD_MINUTES * 60_000),
       confirmedAt: confirmed ? now : null,
       manageTokenHash: hashManageToken(manageToken),
+      whatsappOptIn: args.whatsappOptIn ?? false,
     })
     .returning();
   await db.insert(schema.bookingRoom).values(

@@ -264,6 +264,7 @@ export const booking = pgTable('booking', {
   cancellationPolicy: jsonb('cancellation_policy').$type<{ name: string; rules: CancellationRule[]; isNonRefundable: boolean } | null>(),
   holdExpiresAt: ts('hold_expires_at'),
   manageTokenHash: text('manage_token_hash').notNull(),
+  whatsappOptIn: boolean('whatsapp_opt_in').notNull().default(false),
   cancelPenalty: integer('cancel_penalty'),
   cancelledAt: ts('cancelled_at'),
   confirmedAt: ts('confirmed_at'),
@@ -311,6 +312,12 @@ export const payment = pgTable('payment', {
   updatedAt: ts('updated_at').notNull().defaultNow(),
 });
 
+export interface WhatsAppPayload {
+  template: string;
+  language: string;
+  params: string[];
+}
+
 export const messageOutbox = pgTable('message_outbox', {
   id: uuid('id').primaryKey().defaultRandom(),
   tenantId: uuid('tenant_id').notNull(),
@@ -330,6 +337,7 @@ export const messageOutbox = pgTable('message_outbox', {
   sendAfter: ts('send_after').notNull().defaultNow(),
   sentAt: ts('sent_at'),
   providerMessageId: text('provider_message_id'),
+  payload: jsonb('payload').$type<WhatsAppPayload | null>(),
   createdAt: ts('created_at').notNull().defaultNow(),
 });
 

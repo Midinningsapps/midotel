@@ -35,6 +35,7 @@ export function BookingEngine() {
   const [step, setStep] = useState<'rooms' | 'details' | 'pay'>('rooms');
   const [guest, setGuest] = useState({ name: '', email: '', phone: '', gstin: '', specialRequests: '' });
   const [mode, setMode] = useState<'pay_now' | 'pay_at_hotel'>('pay_now');
+  const [whatsapp, setWhatsapp] = useState(false);
   const [busy, setBusy] = useState(false);
   const [created, setCreated] = useState<Created | null>(null);
 
@@ -113,6 +114,7 @@ export function BookingEngine() {
         selections: lines.map((l) => ({ roomTypeId: l.roomTypeId, ratePlanId: l.ratePlanId, quantity: l.quantity })),
         guest: { ...guest, gstin: guest.gstin.trim() || null, specialRequests: guest.specialRequests.trim() || null },
         paymentMode: mode,
+        whatsappOptIn: whatsapp,
       });
       if (!res.payment) {
         router.push(`/booking/${res.reference}?token=${encodeURIComponent(res.manageToken)}`);
@@ -275,6 +277,10 @@ export function BookingEngine() {
                   <label>
                     Mobile number
                     <input type="tel" value={guest.phone} onChange={(e) => setGuest({ ...guest, phone: e.target.value })} required autoComplete="tel" placeholder="+91" />
+                  </label>
+                  <label className="full whatsapp-opt">
+                    <input type="checkbox" checked={whatsapp} onChange={(e) => setWhatsapp(e.target.checked)} />
+                    <span>Send my booking confirmation and updates on WhatsApp to this number</span>
                   </label>
                   <label className="full">
                     Email

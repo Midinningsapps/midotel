@@ -3,6 +3,8 @@ import { buildApp } from './app.ts';
 import { expireHolds } from './booking/service.ts';
 import { deliverOutbox } from './notify/outbox.ts';
 import { senderFromEnv } from './notify/senders.ts';
+import { whatsAppSenderFromEnv } from './notify/whatsapp.ts';
+import { whatsappEnabled } from './notify/outbox.ts';
 
 const pool = createPool(
   process.env.DATABASE_URL ?? 'postgres://midotel_app:midotel_dev_app@localhost:5433/midotel',
@@ -21,12 +23,14 @@ sweeper.unref();
 
 // Deliver queued emails every few seconds.
 const sender = senderFromEnv();
-app.log.info({ sender: sender.name }, 'email sender ready');
+const whatsapp = whatsAppSenderFromEnv();
+whatsappEnabled.value = whatsapp !== null;
+app.log.info({ sender: sender.name, whatsapp: whatsapp?.name ?? 'off' }, 'message senders ready');
 let delivering = false;
 const mailer = setInterval(() => {
   if (delivering) return;
   delivering = true;
-  deliverOutbox(pool, sender)
+  deliverOutbox(pool, sender, 20, whatsapp)
     .then((r) => (r.sent || r.failed) && app.log.info(r, 'email delivery'))
     .catch((err) => app.log.error(err, 'email delivery failed'))
     .finally(() => (delivering = false));

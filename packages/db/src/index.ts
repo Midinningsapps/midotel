@@ -3,6 +3,7 @@ import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import * as schema from './schema.ts';
 
 export * as schema from './schema.ts';
+export type { WhatsAppPayload, NightPrice, CancellationRule } from './schema.ts';
 export { migrate } from './migrate.ts';
 
 export type Db = NodePgDatabase<typeof schema>;

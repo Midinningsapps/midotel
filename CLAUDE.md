@@ -54,6 +54,7 @@ Architecture doc (source of truth for design decisions): https://claude.ai/artif
 - The API delivers due messages every 5 s via `claim_outbox_messages` / `settle_outbox_message` (SKIP LOCKED, retries 1/2/4/8 min, then `failed`; staff can retry).
 - Sender: Postmark when `POSTMARK_TOKEN` + `MAIL_FROM` are set, otherwise HTML files in `.data/mail`.
 - Templates in `apps/api/src/notify/templates.ts`; every guest-typed value is HTML-escaped.
+- WhatsApp: only for guests who opted in (`booking.whatsapp_opt_in`), via Meta Cloud API templates (`docs/whatsapp-templates.md`, wording must match `notify/whatsapp.ts`); locally saved to `.data/whatsapp`.
 
 ## Conventions
 - TypeScript strict. Validate request bodies with zod. Money as integer minor units (paise) when pricing arrives.

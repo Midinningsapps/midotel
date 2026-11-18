@@ -41,6 +41,7 @@ const BookBody = StayBody.extend({
     specialRequests: z.string().trim().max(1000).nullable().optional(),
   }),
   paymentMode: z.enum(['pay_now', 'pay_at_hotel']),
+  whatsappOptIn: z.boolean().default(false),
 });
 
 /** The hotel's own gateway, or the demo gateway when none is set up yet. */
@@ -196,6 +197,7 @@ export async function publicBookingRoutes(app: FastifyInstance) {
         selections: body.selections,
         guest: body.guest,
         paymentMode: body.paymentMode,
+        whatsappOptIn: body.whatsappOptIn,
         source: 'website',
       });
       let payment = null;
