@@ -15,7 +15,9 @@ Architecture doc (source of truth for design decisions): https://claude.ai/artif
 ## Layout (npm workspaces)
 - `packages/db` - SQL migrations (`migrations/*.sql`), Drizzle table definitions (`src/schema.ts`), `withTenant()` helper.
 - `apps/api` - Fastify API. Routes in `src/routes/`. Tests in `test/` (Vitest + embedded Postgres).
+- `packages/sections` - page section schemas (zod), starter pages and theme tokens; shared by API, admin and site.
 - `apps/admin` - Next.js admin app. Calls the API through the `/api/*` rewrite in `next.config.ts`.
+- `apps/site` - Next.js hotel website renderer (port 3001). `/s/<hostname>/...` = published site, `/preview/...?token=` = draft. Themes in `themes/` (first theme: Aurora, original design).
 - `scripts/dev-db.ts` - starts a local embedded Postgres on port 5433 (data in `.data/pg`).
 
 ## Tenant isolation (do not weaken)
@@ -29,9 +31,14 @@ Architecture doc (source of truth for design decisions): https://claude.ai/artif
 - `npm install`
 - `npm run db:start` (keep running in its own terminal; first run creates the database and roles)
 - `npm run db:migrate`
-- `npm run dev` (API on :4000, admin on :3000)
+- `npm run dev` (API on :4000, admin on :3000, hotel sites on :3001)
 - `npm test` (starts its own throwaway Postgres)
 - `npm run typecheck`
+
+## Website builder
+- Pages hold `draft` and `published` JSON arrays of sections. Publish copies draft to published for every page in one transaction.
+- Media: uploads are sniffed by magic bytes (never trust the declared type), stored via `Storage` (local disk now, S3 later), served at `/media/<tenantId>/<id>`.
+- Preview links use short-lived HMAC tokens (`PREVIEW_SECRET`).
 
 ## Conventions
 - TypeScript strict. Validate request bodies with zod. Money as integer minor units (paise) when pricing arrives.

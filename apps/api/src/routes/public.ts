@@ -1,15 +1,16 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { and, asc, eq } from 'drizzle-orm';
-import { schema, withTenant } from '@midotel/db';
+import { withTenant } from '@midotel/db';
 import { HttpError } from '../app.ts';
+import { readPreviewToken } from '../preview-token.ts';
+import { buildSiteData } from '../site-data.ts';
 
 // Unauthenticated endpoints used by hotel websites and the booking engine.
 export async function publicRoutes(app: FastifyInstance) {
   const pool = app.pool;
 
-  // Resolve a hostname to its property and return what a website or booking page needs.
-  app.get('/site', async (req) => {
+  // Published site for a hostname (www.hotel.com).
+  app.get('/site', async (req, reply) => {
     const { host } = z.object({ host: z.string().min(1).max(253) }).parse(req.query);
     const { rows } = await pool.query<{ tenant_id: string; property_id: string; purpose: string }>(
       'SELECT * FROM resolve_hostname($1)',
@@ -17,44 +18,20 @@ export async function publicRoutes(app: FastifyInstance) {
     );
     const hit = rows[0];
     if (!hit) throw new HttpError(404, 'Unknown site');
-    return withTenant(pool, hit.tenant_id, async (db) => {
-      const [p] = await db.select().from(schema.property).where(eq(schema.property.id, hit.property_id));
-      if (!p || p.status === 'archived') throw new HttpError(404, 'Unknown site');
-      const rooms = await db
-        .select({
-          id: schema.roomType.id,
-          name: schema.roomType.name,
-          code: schema.roomType.code,
-          shortDescription: schema.roomType.shortDescription,
-          description: schema.roomType.description,
-          maxAdults: schema.roomType.maxAdults,
-          maxChildren: schema.roomType.maxChildren,
-          maxOccupancy: schema.roomType.maxOccupancy,
-          sizeSqft: schema.roomType.sizeSqft,
-          bedType: schema.roomType.bedType,
-        })
-        .from(schema.roomType)
-        .where(and(eq(schema.roomType.propertyId, p.id), eq(schema.roomType.isActive, true)))
-        .orderBy(asc(schema.roomType.sortOrder), asc(schema.roomType.name));
-      return {
-        purpose: hit.purpose,
-        property: {
-          id: p.id,
-          name: p.name,
-          tagline: p.tagline,
-          description: p.description,
-          email: p.email,
-          phone: p.phone,
-          address: [p.addressLine, p.city, p.state, p.postalCode].filter(Boolean).join(', '),
-          latitude: p.latitude === null ? null : Number(p.latitude),
-          longitude: p.longitude === null ? null : Number(p.longitude),
-          currency: p.currency,
-          timezone: p.timezone,
-          checkInTime: p.checkInTime,
-          checkOutTime: p.checkOutTime,
-        },
-        rooms,
-      };
-    });
+    const data = await withTenant(pool, hit.tenant_id, (db) => buildSiteData(db, hit.tenant_id, hit.property_id, 'published'));
+    if (!data) throw new HttpError(404, 'This site has not been published yet');
+    reply.header('cache-control', 'public, max-age=30');
+    return { purpose: hit.purpose, ...data };
+  });
+
+  // Draft site for the admin preview, authorised by a short-lived signed token.
+  app.get('/preview', async (req, reply) => {
+    const { token } = z.object({ token: z.string().min(10).max(1000) }).parse(req.query);
+    const t = readPreviewToken(token);
+    if (!t) throw new HttpError(401, 'Preview link expired. Open the preview again from the admin.');
+    const data = await withTenant(pool, t.tenantId, (db) => buildSiteData(db, t.tenantId, t.propertyId, 'draft'));
+    if (!data) throw new HttpError(404, 'Unknown site');
+    reply.header('cache-control', 'no-store');
+    return { purpose: 'website', ...data };
   });
 }

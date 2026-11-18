@@ -49,6 +49,7 @@ export const property = pgTable('property', {
   checkInTime: time('check_in_time').notNull().default('14:00'),
   checkOutTime: time('check_out_time').notNull().default('11:00'),
   status: text('status', { enum: ['draft', 'live', 'archived'] }).notNull().default('draft'),
+  amenities: text('amenities').array().notNull().default([]),
   createdAt: ts('created_at').notNull().defaultNow(),
   updatedAt: ts('updated_at').notNull().defaultNow(),
 });
@@ -106,8 +107,60 @@ export const roomType = pgTable('room_type', {
   bedType: text('bed_type'),
   sortOrder: integer('sort_order').notNull().default(0),
   isActive: boolean('is_active').notNull().default(true),
+  imageIds: uuid('image_ids').array().notNull().default([]),
   createdAt: ts('created_at').notNull().defaultNow(),
   updatedAt: ts('updated_at').notNull().defaultNow(),
+});
+
+export const site = pgTable('site', {
+  propertyId: uuid('property_id').primaryKey(),
+  tenantId: uuid('tenant_id').notNull(),
+  theme: text('theme').notNull().default('aurora'),
+  tokens: jsonb('tokens').$type<Record<string, string>>().notNull().default({}),
+  publishedVersion: integer('published_version').notNull().default(0),
+  publishedAt: ts('published_at'),
+  createdAt: ts('created_at').notNull().defaultNow(),
+  updatedAt: ts('updated_at').notNull().defaultNow(),
+});
+
+export interface PageMeta {
+  title: string;
+  slug: string;
+  kind: 'home' | 'custom';
+  sortOrder: number;
+  showInMenu: boolean;
+  seoTitle: string | null;
+  seoDescription: string | null;
+}
+
+export const page = pgTable('page', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  tenantId: uuid('tenant_id').notNull(),
+  propertyId: uuid('property_id').notNull(),
+  slug: text('slug').notNull(),
+  title: text('title').notNull(),
+  kind: text('kind', { enum: ['home', 'custom'] }).notNull().default('custom'),
+  sortOrder: integer('sort_order').notNull().default(0),
+  showInMenu: boolean('show_in_menu').notNull().default(true),
+  seoTitle: text('seo_title'),
+  seoDescription: text('seo_description'),
+  draft: jsonb('draft').$type<unknown[]>().notNull().default([]),
+  published: jsonb('published').$type<unknown[] | null>(),
+  publishedMeta: jsonb('published_meta').$type<PageMeta | null>(),
+  createdAt: ts('created_at').notNull().defaultNow(),
+  updatedAt: ts('updated_at').notNull().defaultNow(),
+});
+
+export const mediaAsset = pgTable('media_asset', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  tenantId: uuid('tenant_id').notNull(),
+  propertyId: uuid('property_id').notNull(),
+  fileName: text('file_name').notNull(),
+  contentType: text('content_type').notNull(),
+  byteSize: integer('byte_size').notNull(),
+  storageKey: text('storage_key').notNull(),
+  alt: text('alt'),
+  createdAt: ts('created_at').notNull().defaultNow(),
 });
 
 export const auditLog = pgTable('audit_log', {

@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { and, asc, eq } from 'drizzle-orm';
-import { schema, withTenant } from '@midotel/db';
+import { and, asc, eq, inArray } from 'drizzle-orm';
+import { schema, withTenant, type Db } from '@midotel/db';
 import { assertProperty, assertPropertyExists, HttpError, requireAuth, type Role } from '../app.ts';
 import { audit } from '../audit.ts';
 
@@ -26,7 +26,18 @@ const RoomTypeFields = z.object({
   bedType: z.string().trim().max(60).nullable().optional(),
   sortOrder: z.number().int().min(0).max(10000),
   isActive: z.boolean(),
+  imageIds: z.array(z.uuid()).max(30),
 });
+
+/** Room photos must be images uploaded to the same property. */
+async function checkImages(db: Db, propertyId: string, imageIds: string[] | undefined) {
+  if (!imageIds?.length) return;
+  const found = await db
+    .select({ id: schema.mediaAsset.id })
+    .from(schema.mediaAsset)
+    .where(and(eq(schema.mediaAsset.propertyId, propertyId), inArray(schema.mediaAsset.id, imageIds)));
+  if (found.length !== new Set(imageIds).size) throw new HttpError(400, 'Unknown image');
+}
 
 function checkOccupancy(v: { baseOccupancy: number; maxAdults: number; maxChildren: number; maxOccupancy: number }) {
   if (v.maxOccupancy > v.maxAdults + v.maxChildren) {
@@ -63,6 +74,7 @@ export async function roomTypeRoutes(app: FastifyInstance) {
     checkOccupancy(merged);
     const created = await withTenant(pool, auth.tenantId, async (db) => {
       await assertPropertyExists(db, propertyId);
+      await checkImages(db, propertyId, merged.imageIds);
       const [rt] = await db
         .insert(schema.roomType)
         .values({ ...merged, tenantId: auth.tenantId, propertyId })
@@ -82,6 +94,7 @@ export async function roomTypeRoutes(app: FastifyInstance) {
       if (!current) throw new HttpError(404, 'Room type not found');
       assertProperty(auth, current.propertyId, EDITORS);
       checkOccupancy({ ...current, ...body });
+      await checkImages(db, current.propertyId, body.imageIds);
       const [rt] = await db.update(schema.roomType).set(body).where(eq(schema.roomType.id, id)).returning();
       await audit(db, { tenantId: auth.tenantId, userId: auth.userId, action: 'update', entity: 'room_type', entityId: id, data: body });
       return rt;

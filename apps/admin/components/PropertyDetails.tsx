@@ -26,7 +26,10 @@ const TEXT_FIELDS: { key: keyof Property; label: string; type?: string; wide?: b
 
 const toForm = (p: Property): Form =>
   Object.fromEntries(
-    Object.entries(p).map(([k, v]) => [k, v === null ? '' : k.endsWith('Time') ? String(v).slice(0, 5) : String(v)]),
+    Object.entries(p).map(([k, v]) => [
+      k,
+      v === null ? '' : Array.isArray(v) ? v.join('\n') : k.endsWith('Time') ? String(v).slice(0, 5) : String(v),
+    ]),
   );
 
 export function PropertyDetails({ property, onSaved }: { property: Property; onSaved: (p: Property) => void }) {
@@ -63,6 +66,10 @@ export function PropertyDetails({ property, onSaved }: { property: Property; onS
       checkInTime: form.checkInTime,
       checkOutTime: form.checkOutTime,
       status: form.status,
+      amenities: (form.amenities ?? '')
+        .split('\n')
+        .map((a) => a.trim())
+        .filter(Boolean),
     };
     try {
       const saved = await api<Property>(`/properties/${property.id}`, { method: 'PATCH', body });
@@ -105,6 +112,10 @@ export function PropertyDetails({ property, onSaved }: { property: Property; onS
               <option key={n} value={n}>{n}</option>
             ))}
           </select>
+        </label>
+        <label className="field wide">
+          Amenities (one per line, shown on the website)
+          <textarea value={form.amenities ?? ''} onChange={set('amenities')} placeholder={'Swimming pool\nFree Wi-Fi\nAirport transfers'} />
         </label>
         <label className="field">
           Status

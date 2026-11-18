@@ -15,7 +15,9 @@
     "drizzle-orm": "^0.45.4",
     "fastify": "^5.6.1",
     "pg": "^8.16.3",
-    "zod": "^4.1.12"
+    "zod": "^4.1.12",
+    "@fastify/multipart": "^9.3.0",
+    "@midotel/sections": "*"
   },
   "devDependencies": {
     "@types/node": "^24.10.1",

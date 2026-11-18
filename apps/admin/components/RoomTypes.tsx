@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { api, type RoomType } from '@/lib/api';
+import { ImageField } from './ImagePicker';
 
 const EMPTY = {
   name: '',
@@ -15,6 +16,7 @@ const EMPTY = {
   totalUnits: '1',
   sortOrder: '0',
   isActive: true,
+  imageIds: [] as string[],
 };
 type Draft = typeof EMPTY;
 
@@ -31,6 +33,7 @@ const fromRoom = (r: RoomType): Draft => ({
   totalUnits: String(r.totalUnits),
   sortOrder: String(r.sortOrder),
   isActive: r.isActive,
+  imageIds: r.imageIds,
 });
 
 const toBody = (d: Draft) => ({
@@ -46,6 +49,7 @@ const toBody = (d: Draft) => ({
   totalUnits: Number(d.totalUnits),
   sortOrder: Number(d.sortOrder),
   isActive: d.isActive,
+  imageIds: d.imageIds,
 });
 
 export function RoomTypes({ propertyId }: { propertyId: string }) {
@@ -186,6 +190,7 @@ export function RoomTypes({ propertyId }: { propertyId: string }) {
             {num('maxOccupancy', 'Max guests in total', 1)}
             {num('baseOccupancy', 'Guests included in base price', 1)}
             {num('sortOrder', 'Display order')}
+            <ImageField propertyId={propertyId} label="Room photos (first one is the cover)" value={draft.imageIds} onChange={(ids) => setDraft({ ...draft, imageIds: ids })} />
             <label className="field" style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               <input type="checkbox" checked={draft.isActive} onChange={set('isActive')} /> Show on website and booking engine
             </label>

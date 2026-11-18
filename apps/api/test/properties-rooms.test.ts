@@ -87,6 +87,9 @@ describe('properties and room types', () => {
     await send('POST', `/properties/${owner.propertyId}/room-types`, { name: 'Garden Room', code: 'GDN' });
     const d = await send('POST', `/properties/${owner.propertyId}/domains`, { hostname: 'www.lake-test.example', purpose: 'website' });
     expect(d.statusCode).toBe(201);
+    const before = await app.inject({ method: 'GET', url: '/public/site?host=www.lake-test.example' });
+    expect(before.statusCode).toBe(404); // nothing published yet
+    await send('POST', `/properties/${owner.propertyId}/publish`);
     const site = await app.inject({ method: 'GET', url: '/public/site?host=WWW.lake-test.example:443' });
     expect(site.statusCode).toBe(200);
     expect(site.json().property.id).toBe(owner.propertyId);

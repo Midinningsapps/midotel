@@ -54,6 +54,7 @@ export interface Property {
   checkInTime: string;
   checkOutTime: string;
   status: 'draft' | 'live' | 'archived';
+  amenities: string[];
 }
 
 export interface RoomType {
@@ -71,4 +72,5 @@ export interface RoomType {
   bedType: string | null;
   sortOrder: number;
   isActive: boolean;
+  imageIds: string[];
 }

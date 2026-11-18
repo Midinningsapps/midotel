@@ -10,6 +10,10 @@ import { propertyRoutes } from './routes/properties.ts';
 import { roomTypeRoutes } from './routes/room-types.ts';
 import { domainRoutes } from './routes/domains.ts';
 import { publicRoutes } from './routes/public.ts';
+import { websiteRoutes } from './routes/website.ts';
+import { mediaRoutes, MAX_UPLOAD_BYTES } from './routes/media.ts';
+import multipart from '@fastify/multipart';
+import { LocalStorage, type Storage } from './storage.ts';
 
 export type Role = 'owner' | 'manager' | 'front_desk' | 'content_editor';
 
@@ -61,11 +65,13 @@ export async function assertPropertyExists(db: Db, propertyId: string): Promise<
   if (!p) throw new HttpError(404, 'Property not found');
 }
 
-export async function buildApp(opts: { pool: pg.Pool; logger?: boolean }): Promise<FastifyInstance> {
-  const app = Fastify({ logger: opts.logger ?? false, trustProxy: true });
+export async function buildApp(opts: { pool: pg.Pool; logger?: boolean; storage?: Storage }): Promise<FastifyInstance> {
+  const app = Fastify({ logger: opts.logger ?? false, trustProxy: true, bodyLimit: 2 * 1024 * 1024 });
+  const storage = opts.storage ?? new LocalStorage(process.env.MEDIA_DIR ?? new URL('../../../.data/media', import.meta.url).pathname);
   app.decorate('pool', opts.pool);
   app.decorateRequest('auth', null);
   await app.register(cookie);
+  await app.register(multipart, { limits: { fileSize: MAX_UPLOAD_BYTES, files: 1 } });
 
   // Resolve the session cookie into an AuthContext.
   app.addHook('onRequest', async (req) => {
@@ -108,6 +114,8 @@ export async function buildApp(opts: { pool: pg.Pool; logger?: boolean }): Promi
   await app.register(propertyRoutes, { prefix: '/properties' });
   await app.register(roomTypeRoutes);
   await app.register(domainRoutes);
+  await app.register(websiteRoutes);
+  await app.register(mediaRoutes, { storage });
   await app.register(publicRoutes, { prefix: '/public' });
   return app;
 }
