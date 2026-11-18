@@ -11,6 +11,9 @@ import { roomTypeRoutes } from './routes/room-types.ts';
 import { domainRoutes } from './routes/domains.ts';
 import { publicRoutes } from './routes/public.ts';
 import { websiteRoutes } from './routes/website.ts';
+import { rateRoutes } from './routes/rates.ts';
+import { bookingRoutes } from './routes/bookings.ts';
+import { publicBookingRoutes } from './routes/public-booking.ts';
 import { mediaRoutes, MAX_UPLOAD_BYTES } from './routes/media.ts';
 import multipart from '@fastify/multipart';
 import { LocalStorage, type Storage } from './storage.ts';
@@ -116,6 +119,9 @@ export async function buildApp(opts: { pool: pg.Pool; logger?: boolean; storage?
   await app.register(domainRoutes);
   await app.register(websiteRoutes);
   await app.register(mediaRoutes, { storage });
+  await app.register(rateRoutes);
+  await app.register(bookingRoutes);
   await app.register(publicRoutes, { prefix: '/public' });
+  await app.register(publicBookingRoutes, { prefix: '/public' });
   return app;
 }

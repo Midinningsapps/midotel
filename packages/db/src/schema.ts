@@ -3,6 +3,7 @@ import {
   bigserial,
   boolean,
   char,
+  date,
   integer,
   jsonb,
   numeric,
@@ -50,6 +51,13 @@ export const property = pgTable('property', {
   checkOutTime: time('check_out_time').notNull().default('11:00'),
   status: text('status', { enum: ['draft', 'live', 'archived'] }).notNull().default('draft'),
   amenities: text('amenities').array().notNull().default([]),
+  taxSlabs: jsonb('tax_slabs')
+    .$type<{ upTo: number | null; rate: number }[]>()
+    .notNull()
+    .default([
+      { upTo: 750000, rate: 5 },
+      { upTo: null, rate: 18 },
+    ]),
   createdAt: ts('created_at').notNull().defaultNow(),
   updatedAt: ts('updated_at').notNull().defaultNow(),
 });
@@ -161,6 +169,145 @@ export const mediaAsset = pgTable('media_asset', {
   storageKey: text('storage_key').notNull(),
   alt: text('alt'),
   createdAt: ts('created_at').notNull().defaultNow(),
+});
+
+export interface CancellationRule {
+  daysBefore: number;
+  penaltyType: 'percent' | 'nights';
+  value: number;
+}
+
+export const cancellationPolicy = pgTable('cancellation_policy', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  tenantId: uuid('tenant_id').notNull(),
+  propertyId: uuid('property_id').notNull(),
+  name: text('name').notNull(),
+  description: text('description'),
+  rules: jsonb('rules').$type<CancellationRule[]>().notNull().default([]),
+  isNonRefundable: boolean('is_non_refundable').notNull().default(false),
+  createdAt: ts('created_at').notNull().defaultNow(),
+});
+
+export const ratePlan = pgTable('rate_plan', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  tenantId: uuid('tenant_id').notNull(),
+  propertyId: uuid('property_id').notNull(),
+  name: text('name').notNull(),
+  code: text('code').notNull(),
+  description: text('description'),
+  mealPlan: text('meal_plan', { enum: ['EP', 'CP', 'MAP', 'AP'] }).notNull().default('EP'),
+  cancellationPolicyId: uuid('cancellation_policy_id'),
+  parentId: uuid('parent_id'),
+  deriveKind: text('derive_kind', { enum: ['percent', 'amount'] }),
+  deriveValue: integer('derive_value'),
+  isActive: boolean('is_active').notNull().default(true),
+  sortOrder: integer('sort_order').notNull().default(0),
+  createdAt: ts('created_at').notNull().defaultNow(),
+  updatedAt: ts('updated_at').notNull().defaultNow(),
+});
+
+export const roomRate = pgTable('room_rate', {
+  tenantId: uuid('tenant_id').notNull(),
+  propertyId: uuid('property_id').notNull(),
+  roomTypeId: uuid('room_type_id').notNull(),
+  ratePlanId: uuid('rate_plan_id').notNull(),
+  date: date('date', { mode: 'string' }).notNull(),
+  price: integer('price').notNull(),
+  extraAdult: integer('extra_adult').notNull().default(0),
+  extraChild: integer('extra_child').notNull().default(0),
+});
+
+export const inventoryDay = pgTable('inventory_day', {
+  tenantId: uuid('tenant_id').notNull(),
+  propertyId: uuid('property_id').notNull(),
+  roomTypeId: uuid('room_type_id').notNull(),
+  date: date('date', { mode: 'string' }).notNull(),
+  total: smallint('total').notNull(),
+  sold: smallint('sold').notNull().default(0),
+  held: smallint('held').notNull().default(0),
+  closed: boolean('closed').notNull().default(false),
+  closedToArrival: boolean('closed_to_arrival').notNull().default(false),
+  closedToDeparture: boolean('closed_to_departure').notNull().default(false),
+  minStay: smallint('min_stay'),
+  maxStay: smallint('max_stay'),
+});
+
+export interface NightPrice {
+  date: string;
+  price: number;
+  tax: number;
+}
+
+export const booking = pgTable('booking', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  tenantId: uuid('tenant_id').notNull(),
+  propertyId: uuid('property_id').notNull(),
+  reference: text('reference').notNull(),
+  status: text('status', { enum: ['pending_payment', 'confirmed', 'cancelled', 'expired'] }).notNull(),
+  source: text('source', { enum: ['website', 'desk', 'channel'] }).notNull().default('website'),
+  checkIn: date('check_in', { mode: 'string' }).notNull(),
+  checkOut: date('check_out', { mode: 'string' }).notNull(),
+  guestName: text('guest_name').notNull(),
+  guestEmail: text('guest_email').notNull(),
+  guestPhone: text('guest_phone').notNull(),
+  guestGstin: text('guest_gstin'),
+  specialRequests: text('special_requests'),
+  adults: smallint('adults').notNull(),
+  children: smallint('children').notNull(),
+  currency: char('currency', { length: 3 }).notNull(),
+  subtotal: integer('subtotal').notNull(),
+  tax: integer('tax').notNull(),
+  total: integer('total').notNull(),
+  paid: integer('paid').notNull().default(0),
+  paymentMode: text('payment_mode', { enum: ['pay_now', 'pay_at_hotel'] }).notNull(),
+  cancellationPolicy: jsonb('cancellation_policy').$type<{ name: string; rules: CancellationRule[]; isNonRefundable: boolean } | null>(),
+  holdExpiresAt: ts('hold_expires_at'),
+  manageTokenHash: text('manage_token_hash').notNull(),
+  cancelPenalty: integer('cancel_penalty'),
+  cancelledAt: ts('cancelled_at'),
+  confirmedAt: ts('confirmed_at'),
+  createdAt: ts('created_at').notNull().defaultNow(),
+  updatedAt: ts('updated_at').notNull().defaultNow(),
+});
+
+export const bookingRoom = pgTable('booking_room', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  tenantId: uuid('tenant_id').notNull(),
+  bookingId: uuid('booking_id').notNull(),
+  roomTypeId: uuid('room_type_id').notNull(),
+  ratePlanId: uuid('rate_plan_id').notNull(),
+  roomName: text('room_name').notNull(),
+  ratePlanName: text('rate_plan_name').notNull(),
+  adults: smallint('adults').notNull(),
+  children: smallint('children').notNull(),
+  nights: jsonb('nights').$type<NightPrice[]>().notNull(),
+  subtotal: integer('subtotal').notNull(),
+  tax: integer('tax').notNull(),
+});
+
+export const gatewayAccount = pgTable('gateway_account', {
+  propertyId: uuid('property_id').primaryKey(),
+  tenantId: uuid('tenant_id').notNull(),
+  provider: text('provider', { enum: ['razorpay', 'demo'] }).notNull(),
+  keyId: text('key_id'),
+  keySecretEnc: text('key_secret_enc'),
+  webhookSecretEnc: text('webhook_secret_enc'),
+  payAtHotel: boolean('pay_at_hotel').notNull().default(true),
+  updatedAt: ts('updated_at').notNull().defaultNow(),
+});
+
+export const payment = pgTable('payment', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  tenantId: uuid('tenant_id').notNull(),
+  bookingId: uuid('booking_id').notNull(),
+  provider: text('provider').notNull(),
+  kind: text('kind', { enum: ['charge', 'refund'] }).notNull().default('charge'),
+  providerOrderId: text('provider_order_id'),
+  providerPaymentId: text('provider_payment_id'),
+  amount: integer('amount').notNull(),
+  status: text('status', { enum: ['created', 'captured', 'failed', 'refunded', 'pending'] }).notNull(),
+  createdAt: ts('created_at').notNull().defaultNow(),
+  updatedAt: ts('updated_at').notNull().defaultNow(),
 });
 
 export const auditLog = pgTable('audit_log', {
