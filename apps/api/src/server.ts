@@ -1,6 +1,8 @@
 import { createPool } from '@midotel/db';
 import { buildApp } from './app.ts';
 import { expireHolds } from './booking/service.ts';
+import { deliverOutbox } from './notify/outbox.ts';
+import { senderFromEnv } from './notify/senders.ts';
 
 const pool = createPool(
   process.env.DATABASE_URL ?? 'postgres://midotel_app:midotel_dev_app@localhost:5433/midotel',
@@ -16,6 +18,20 @@ const sweeper = setInterval(() => {
     .catch((err) => app.log.error(err, 'hold sweeper failed'));
 }, 60_000);
 sweeper.unref();
+
+// Deliver queued emails every few seconds.
+const sender = senderFromEnv();
+app.log.info({ sender: sender.name }, 'email sender ready');
+let delivering = false;
+const mailer = setInterval(() => {
+  if (delivering) return;
+  delivering = true;
+  deliverOutbox(pool, sender)
+    .then((r) => (r.sent || r.failed) && app.log.info(r, 'email delivery'))
+    .catch((err) => app.log.error(err, 'email delivery failed'))
+    .finally(() => (delivering = false));
+}, 5_000);
+mailer.unref();
 
 const shutdown = async () => {
   await app.close();

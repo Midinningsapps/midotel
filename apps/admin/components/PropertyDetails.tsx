@@ -66,6 +66,10 @@ export function PropertyDetails({ property, onSaved }: { property: Property; onS
       checkInTime: form.checkInTime,
       checkOutTime: form.checkOutTime,
       status: form.status,
+      notificationEmails: (form.notificationEmails ?? '')
+        .split('\n')
+        .map((a) => a.trim())
+        .filter(Boolean),
       amenities: (form.amenities ?? '')
         .split('\n')
         .map((a) => a.trim())
@@ -116,6 +120,10 @@ export function PropertyDetails({ property, onSaved }: { property: Property; onS
         <label className="field wide">
           Amenities (one per line, shown on the website)
           <textarea value={form.amenities ?? ''} onChange={set('amenities')} placeholder={'Swimming pool\nFree Wi-Fi\nAirport transfers'} />
+        </label>
+        <label className="field wide">
+          Send new-booking and cancellation alerts to (one email per line)
+          <textarea value={form.notificationEmails ?? ''} onChange={set('notificationEmails')} placeholder={'reservations@yourhotel.com'} style={{ minHeight: 60 }} />
         </label>
         <label className="field">
           Status

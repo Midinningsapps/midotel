@@ -10,6 +10,7 @@ import { decryptSecret } from '../crypto.ts';
 import { demoGateway, razorpay, type Gateway } from '../payments.ts';
 import { mediaUrl } from '../site-data.ts';
 import { audit } from '../audit.ts';
+import { queueCancellation, queueConfirmation } from '../notify/outbox.ts';
 
 const Phone = z.string().trim().regex(/^\+?[0-9 ()-]{7,20}$/, 'Enter a valid phone number');
 
@@ -211,6 +212,7 @@ export async function publicBookingRoutes(app: FastifyInstance) {
         payment = { provider: gateway.provider, keyId: gateway.publicKey, orderId: order.orderId, amount: order.amount, currency: order.currency };
       }
       await audit(db, { tenantId, userId: null, action: 'create', entity: 'booking', entityId: booking.id, data: { reference: booking.reference, mode: body.paymentMode } });
+      if (booking.status === 'confirmed') await queueConfirmation(db, booking.id, manageToken);
       return { reference: booking.reference, manageToken, status: booking.status, total: booking.total, holdExpiresAt: booking.holdExpiresAt, payment };
     });
     return reply.status(201).send(result);
@@ -235,7 +237,8 @@ export async function publicBookingRoutes(app: FastifyInstance) {
       if (!gateway.verify(body.orderId, body.paymentId, body.signature)) throw new HttpError(400, 'Payment could not be verified');
       if (pay.status === 'captured') return bookingView(db, b); // repeated callback
       await db.update(schema.payment).set({ status: 'captured', providerPaymentId: body.paymentId }).where(eq(schema.payment.id, pay.id));
-      await confirmPaidBooking(db, client, b, pay.amount);
+      const { alreadyConfirmed } = await confirmPaidBooking(db, client, b, pay.amount);
+      if (!alreadyConfirmed) await queueConfirmation(db, b.id, body.token);
       await audit(db, { tenantId, userId: null, action: 'payment', entity: 'booking', entityId: b.id, data: { amount: pay.amount, provider: gateway.provider } });
       const [fresh] = await db.select().from(schema.booking).where(eq(schema.booking.id, b.id));
       return bookingView(db, fresh!);
@@ -264,6 +267,7 @@ export async function publicBookingRoutes(app: FastifyInstance) {
       const result = await cancelBooking(db, client, b, { timezone: p.timezone });
       const refunded = result.refund > 0 ? await refundPayments(db, b, result.refund, await gatewayFor(db, b.propertyId)) : 0;
       await audit(db, { tenantId, userId: null, action: 'cancel', entity: 'booking', entityId: b.id, data: { ...result, refunded, by: 'guest' } });
+      await queueCancellation(db, b.id, refunded);
       const [fresh] = await db.select().from(schema.booking).where(eq(schema.booking.id, b.id));
       return { ...(await bookingView(db, fresh!)), refunded };
     });

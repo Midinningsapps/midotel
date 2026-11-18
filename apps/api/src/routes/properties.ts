@@ -37,6 +37,7 @@ export const PropertyFields = z.object({
   checkOutTime: time,
   status: z.enum(['draft', 'live', 'archived']),
   amenities: z.array(z.string().trim().min(1).max(60)).max(60),
+  notificationEmails: z.array(z.email().max(200)).max(10),
 });
 
 const CreateProperty = PropertyFields.pick({ name: true, slug: true }).extend(

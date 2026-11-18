@@ -1,0 +1,91 @@
+// Queue booking emails in the same transaction as the booking change, then deliver them in the background.
+import type pg from 'pg';
+import { eq } from 'drizzle-orm';
+import { schema, type Db } from '@midotel/db';
+import { describePolicy } from '../booking/pricing.ts';
+import type { MailSender } from './senders.ts';
+import { guestCancellation, guestConfirmation, hotelAlert, type EmailBooking, type EmailHotel } from './templates.ts';
+
+export const MAX_ATTEMPTS = 5;
+const bookingBase = () => process.env.BOOKING_PUBLIC_URL ?? 'http://localhost:3002';
+const adminBase = () => process.env.ADMIN_PUBLIC_URL ?? 'http://localhost:3000';
+
+type BookingRow = typeof schema.booking.$inferSelect;
+
+async function context(db: Db, bookingId: string) {
+  const [b] = await db.select().from(schema.booking).where(eq(schema.booking.id, bookingId));
+  if (!b) throw new Error('booking not found');
+  const [p] = await db.select().from(schema.property).where(eq(schema.property.id, b.propertyId));
+  const rooms = await db.select().from(schema.bookingRoom).where(eq(schema.bookingRoom.bookingId, b.id));
+  const booking: EmailBooking = { ...b, rooms };
+  const hotel: EmailHotel = {
+    name: p!.name,
+    phone: p!.phone,
+    email: p!.email,
+    address: [p!.addressLine, p!.city, p!.state, p!.postalCode].filter(Boolean).join(', '),
+    checkInTime: p!.checkInTime.slice(0, 5),
+    checkOutTime: p!.checkOutTime.slice(0, 5),
+  };
+  return { b, p: p!, booking, hotel };
+}
+
+async function enqueue(db: Db, b: BookingRow, from: string, replyTo: string | null, template: string, to: string, r: { subject: string; html: string; text: string }) {
+  await db.insert(schema.messageOutbox).values({
+    tenantId: b.tenantId,
+    propertyId: b.propertyId,
+    bookingId: b.id,
+    template,
+    recipient: to,
+    replyTo,
+    fromName: from,
+    subject: r.subject,
+    bodyHtml: r.html,
+    bodyText: r.text,
+  });
+}
+
+/** Booking confirmed (pay at hotel, or payment received): email the guest and alert the hotel. */
+export async function queueConfirmation(db: Db, bookingId: string, manageToken: string | null) {
+  const { b, p, booking, hotel } = await context(db, bookingId);
+  const manageUrl = manageToken ? `${bookingBase()}/booking/${b.reference}?token=${encodeURIComponent(manageToken)}` : null;
+  await enqueue(db, b, p.name, p.email, 'guest_confirmation', b.guestEmail, guestConfirmation(booking, hotel, { manageUrl, policyText: describePolicy(b.cancellationPolicy) }));
+  for (const to of p.notificationEmails) {
+    await enqueue(db, b, 'Midotel', b.guestEmail, 'hotel_new_booking', to, hotelAlert(booking, hotel, 'new', { adminUrl: `${adminBase()}/properties/${p.id}` }));
+  }
+}
+
+export async function queueCancellation(db: Db, bookingId: string, refunded: number, notifyGuest = true) {
+  const { b, p, booking, hotel } = await context(db, bookingId);
+  if (notifyGuest) await enqueue(db, b, p.name, p.email, 'guest_cancellation', b.guestEmail, guestCancellation(booking, hotel, { refunded }));
+  for (const to of p.notificationEmails) {
+    await enqueue(db, b, 'Midotel', b.guestEmail, 'hotel_cancellation', to, hotelAlert(booking, hotel, 'cancelled', { adminUrl: `${adminBase()}/properties/${p.id}` }));
+  }
+}
+
+/** Send due messages. Safe to run from several processes at once (rows are claimed with SKIP LOCKED). */
+export async function deliverOutbox(pool: pg.Pool, sender: MailSender, limit = 20): Promise<{ sent: number; failed: number }> {
+  const { rows } = await pool.query<{
+    id: string;
+    recipient: string;
+    from_name: string;
+    reply_to: string | null;
+    subject: string;
+    body_html: string;
+    body_text: string;
+    channel: string;
+  }>('SELECT * FROM claim_outbox_messages($1)', [limit]);
+  let sent = 0;
+  let failed = 0;
+  for (const m of rows) {
+    try {
+      if (m.channel !== 'email') throw new Error(`No sender for channel ${m.channel}`);
+      const r = await sender.send({ to: m.recipient, fromName: m.from_name, replyTo: m.reply_to, subject: m.subject, html: m.body_html, text: m.body_text, messageId: m.id });
+      await pool.query('SELECT settle_outbox_message($1, true, NULL, $2, $3)', [m.id, r.providerId, MAX_ATTEMPTS]);
+      sent++;
+    } catch (err) {
+      await pool.query('SELECT settle_outbox_message($1, false, $2, NULL, $3)', [m.id, (err as Error).message, MAX_ATTEMPTS]);
+      failed++;
+    }
+  }
+  return { sent, failed };
+}

@@ -27,6 +27,16 @@ interface Booking {
 interface Detail extends Booking {
   payments: { id: string; provider: string; kind: string; amount: number; status: string; providerPaymentId: string | null; createdAt: string }[];
 }
+interface Message {
+  id: string;
+  template: string;
+  recipient: string;
+  subject: string;
+  status: 'pending' | 'sending' | 'sent' | 'failed';
+  lastError: string | null;
+  sentAt: string | null;
+  createdAt: string;
+}
 interface Summary {
   confirmedBookings: number;
   confirmedRevenue: number;
@@ -41,6 +51,8 @@ export function Reservations({ propertyId }: { propertyId: string }) {
   const [rows, setRows] = useState<Booking[] | null>(null);
   const [summary, setSummary] = useState<Summary | null>(null);
   const [open, setOpen] = useState<Detail | null>(null);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [preview, setPreview] = useState<string | null>(null);
   const [error, setError] = useState('');
 
   const load = async () => {
@@ -56,7 +68,19 @@ export function Reservations({ propertyId }: { propertyId: string }) {
   }, [propertyId, status]);
 
   async function show(id: string) {
-    setOpen(await api<Detail>(`/bookings/${id}`));
+    const [d, m] = await Promise.all([api<Detail>(`/bookings/${id}`), api<Message[]>(`/properties/${propertyId}/messages?bookingId=${id}`)]);
+    setOpen(d);
+    setMessages(m);
+  }
+
+  async function viewMessage(id: string) {
+    const m = await api<{ bodyHtml: string }>(`/messages/${id}`);
+    setPreview(m.bodyHtml);
+  }
+
+  async function retry(id: string) {
+    await api(`/messages/${id}/retry`, { method: 'POST' });
+    if (open) await show(open.id);
   }
 
   async function cancel(b: Detail, waivePenalty: boolean) {
@@ -249,6 +273,40 @@ export function Reservations({ propertyId }: { propertyId: string }) {
                   ))}
                 </tbody>
               </table>
+            )}
+            <h3>Emails</h3>
+            {messages.length === 0 ? (
+              <p className="muted">No emails for this booking yet.</p>
+            ) : (
+              <table>
+                <tbody>
+                  {messages.map((m) => (
+                    <tr key={m.id}>
+                      <td>{m.subject}</td>
+                      <td className="muted">{m.recipient}</td>
+                      <td>
+                        <span className={`badge ${m.status === 'sent' ? 'live' : ''}`}>{m.status === 'pending' || m.status === 'sending' ? 'sending' : m.status}</span>
+                        {m.lastError && <div className="error mini">{m.lastError}</div>}
+                      </td>
+                      <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                        <button onClick={() => viewMessage(m.id)}>View</button> {m.status === 'failed' && <button onClick={() => retry(m.id)}>Retry</button>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+            {preview && (
+              <div className="modal-back" onClick={() => setPreview(null)}>
+                <div className="modal" onClick={(e) => e.stopPropagation()}>
+                  <div className="actions" style={{ marginTop: 0 }}>
+                    <strong>Email preview</strong>
+                    <span className="spacer" />
+                    <button onClick={() => setPreview(null)}>Close</button>
+                  </div>
+                  <iframe title="Email preview" sandbox="" srcDoc={preview} style={{ width: '100%', height: '70vh', border: '1px solid #e2e5e9', borderRadius: 8 }} />
+                </div>
+              </div>
             )}
             {(open.status === 'confirmed' || open.status === 'pending_payment') && (
               <div className="actions">

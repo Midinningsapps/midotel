@@ -51,6 +51,7 @@ export const property = pgTable('property', {
   checkOutTime: time('check_out_time').notNull().default('11:00'),
   status: text('status', { enum: ['draft', 'live', 'archived'] }).notNull().default('draft'),
   amenities: text('amenities').array().notNull().default([]),
+  notificationEmails: text('notification_emails').array().notNull().default([]),
   taxSlabs: jsonb('tax_slabs')
     .$type<{ upTo: number | null; rate: number }[]>()
     .notNull()
@@ -308,6 +309,28 @@ export const payment = pgTable('payment', {
   status: text('status', { enum: ['created', 'captured', 'failed', 'refunded', 'pending'] }).notNull(),
   createdAt: ts('created_at').notNull().defaultNow(),
   updatedAt: ts('updated_at').notNull().defaultNow(),
+});
+
+export const messageOutbox = pgTable('message_outbox', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  tenantId: uuid('tenant_id').notNull(),
+  propertyId: uuid('property_id').notNull(),
+  bookingId: uuid('booking_id'),
+  channel: text('channel', { enum: ['email', 'whatsapp'] }).notNull().default('email'),
+  template: text('template').notNull(),
+  recipient: text('recipient').notNull(),
+  replyTo: text('reply_to'),
+  fromName: text('from_name').notNull(),
+  subject: text('subject').notNull(),
+  bodyHtml: text('body_html').notNull(),
+  bodyText: text('body_text').notNull(),
+  status: text('status', { enum: ['pending', 'sending', 'sent', 'failed'] }).notNull().default('pending'),
+  attempts: smallint('attempts').notNull().default(0),
+  lastError: text('last_error'),
+  sendAfter: ts('send_after').notNull().defaultNow(),
+  sentAt: ts('sent_at'),
+  providerMessageId: text('provider_message_id'),
+  createdAt: ts('created_at').notNull().defaultNow(),
 });
 
 export const auditLog = pgTable('audit_log', {

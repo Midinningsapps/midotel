@@ -55,6 +55,7 @@ export interface Property {
   checkOutTime: string;
   status: 'draft' | 'live' | 'archived';
   amenities: string[];
+  notificationEmails: string[];
 }
 
 export interface RoomType {

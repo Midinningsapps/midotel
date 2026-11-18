@@ -49,6 +49,12 @@ Architecture doc (source of truth for design decisions): https://claude.ai/artif
 - Payments go to the hotel's own gateway (`gateway_account`, secrets AES-GCM encrypted with `SECRETS_KEY`). `demo` provider simulates payments for demos.
 - Guests manage bookings with reference + secret token (only its hash is stored).
 
+## Notifications
+- Booking emails are written to `message_outbox` in the same transaction as the booking change (never lost, never sent for a rolled-back booking).
+- The API delivers due messages every 5 s via `claim_outbox_messages` / `settle_outbox_message` (SKIP LOCKED, retries 1/2/4/8 min, then `failed`; staff can retry).
+- Sender: Postmark when `POSTMARK_TOKEN` + `MAIL_FROM` are set, otherwise HTML files in `.data/mail`.
+- Templates in `apps/api/src/notify/templates.ts`; every guest-typed value is HTML-escaped.
+
 ## Conventions
 - TypeScript strict. Validate request bodies with zod. Money as integer minor units (paise) when pricing arrives.
 - Migrations are append-only: never edit an applied migration; add `NNNN_name.sql`.
