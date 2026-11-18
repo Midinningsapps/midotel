@@ -1,0 +1,20 @@
+{
+  "name": "@midotel/db",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "migrate": "node --experimental-strip-types --env-file-if-exists=../../.env src/migrate-cli.ts",
+    "typecheck": "tsc -p ."
+  },
+  "dependencies": {
+    "drizzle-orm": "^0.45.4",
+    "pg": "^8.16.3"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.15.6"
+  }
+}

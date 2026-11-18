@@ -1,0 +1,29 @@
+{
+  "name": "midotel",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Midotel: hotel websites, booking engine and channel manager integration",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "db:start": "node --experimental-strip-types scripts/dev-db.ts",
+    "db:migrate": "npm run migrate -w @midotel/db",
+    "dev:api": "npm run dev -w @midotel/api",
+    "dev:admin": "npm run dev -w @midotel/admin",
+    "dev": "concurrently -n api,admin -c blue,green \"npm run dev:api\" \"npm run dev:admin\"",
+    "test": "npm run test -w @midotel/api",
+    "typecheck": "npm run typecheck --workspaces --if-present"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "typescript": "^5.9.3",
+    "embedded-postgres": "18.6.0-beta.19",
+    "pg": "^8.16.3",
+    "@types/node": "^24.10.1"
+  }
+}
