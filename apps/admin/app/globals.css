@@ -75,3 +75,24 @@ th { color: var(--muted); font-weight: 500; font-size: 13px; }
 .lib-item img { width: 100%; height: 100px; object-fit: cover; display: block; }
 .lib-item.picked { border-color: var(--brand); }
 @media (max-width: 800px) { .website-cols { grid-template-columns: 1fr; } }
+
+.tabs { overflow-x: auto; }
+.tabs button { white-space: nowrap; }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+.stat { display: flex; flex-direction: column; gap: 4px; margin-bottom: 16px; }
+.stat strong { font-size: 22px; }
+tr.clickable { cursor: pointer; }
+tr.clickable:hover td { background: #f7f9fb; }
+table.calendar { font-size: 13px; min-width: 900px; }
+table.calendar th, table.calendar td { text-align: center; padding: 6px 4px; border-bottom: 1px solid var(--line); }
+table.calendar th.weekend { color: var(--brand); }
+table.calendar td.label { text-align: left; color: var(--muted); white-space: nowrap; padding-right: 10px; }
+table.calendar tr.room-head th { text-align: left; background: #f3f5f8; color: var(--text); font-size: 14px; padding: 8px; }
+table.calendar td.closed { background: #fdecea; }
+table.calendar td.full { background: #fff4d6; }
+.mini { font-size: 11px; color: var(--muted); }
+.cell-btn { border: none; background: none; padding: 4px 2px; font-size: 13px; }
+.cell-btn:hover { background: #eef4f3; }
+.cell-input { width: 76px; padding: 4px; font-size: 13px; }
+.chip { font-size: 11px; padding: 2px 8px; border-radius: 999px; border-color: #b7e0cb; color: var(--ok); }
+.chip-closed { border-color: #f3b8b2; color: var(--danger); }

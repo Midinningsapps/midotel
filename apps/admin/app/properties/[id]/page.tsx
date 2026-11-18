@@ -5,12 +5,27 @@ import { Shell } from '@/components/Shell';
 import { PropertyDetails } from '@/components/PropertyDetails';
 import { RoomTypes } from '@/components/RoomTypes';
 import { Website } from '@/components/Website';
+import { RatePlans } from '@/components/RatePlans';
+import { RatesCalendar } from '@/components/RatesCalendar';
+import { Reservations } from '@/components/Reservations';
+import { PaymentSettings } from '@/components/PaymentSettings';
+
+const TABS = [
+  ['reservations', 'Reservations'],
+  ['rates', 'Rates and availability'],
+  ['plans', 'Rate plans'],
+  ['rooms', 'Rooms'],
+  ['website', 'Website'],
+  ['payments', 'Payments'],
+  ['details', 'Hotel details'],
+] as const;
+type Tab = (typeof TABS)[number][0];
 import { api, type Property } from '@/lib/api';
 
 function PropertyPage({ id }: { id: string }) {
   const [property, setProperty] = useState<Property | null>(null);
   const [error, setError] = useState('');
-  const [tab, setTab] = useState<'details' | 'rooms' | 'website'>('details');
+  const [tab, setTab] = useState<Tab>('reservations');
 
   useEffect(() => {
     api<Property>(`/properties/${id}`).then(setProperty).catch((e) => setError(e.message));
@@ -25,19 +40,19 @@ function PropertyPage({ id }: { id: string }) {
       </p>
       <h1>{property.name}</h1>
       <div className="tabs">
-        <button className={tab === 'details' ? 'active' : ''} onClick={() => setTab('details')}>
-          Hotel details
-        </button>
-        <button className={tab === 'rooms' ? 'active' : ''} onClick={() => setTab('rooms')}>
-          Rooms
-        </button>
-        <button className={tab === 'website' ? 'active' : ''} onClick={() => setTab('website')}>
-          Website
-        </button>
+        {TABS.map(([key, label]) => (
+          <button key={key} className={tab === key ? 'active' : ''} onClick={() => setTab(key)}>
+            {label}
+          </button>
+        ))}
       </div>
       {tab === 'details' && <PropertyDetails property={property} onSaved={setProperty} />}
       {tab === 'rooms' && <RoomTypes propertyId={id} />}
       {tab === 'website' && <Website propertyId={id} />}
+      {tab === 'reservations' && <Reservations propertyId={id} />}
+      {tab === 'rates' && <RatesCalendar propertyId={id} />}
+      {tab === 'plans' && <RatePlans propertyId={id} />}
+      {tab === 'payments' && <PaymentSettings propertyId={id} />}
     </>
   );
 }

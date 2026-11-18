@@ -18,6 +18,7 @@ Architecture doc (source of truth for design decisions): https://claude.ai/artif
 - `packages/sections` - page section schemas (zod), starter pages and theme tokens; shared by API, admin and site.
 - `apps/admin` - Next.js admin app. Calls the API through the `/api/*` rewrite in `next.config.ts`.
 - `apps/site` - Next.js hotel website renderer (port 3001). `/s/<hostname>/...` = published site, `/preview/...?token=` = draft. Themes in `themes/` (first theme: Aurora, original design).
+- `apps/booking` - Next.js guest booking engine (port 3002): search, rooms and rates, guest details, payment, manage booking.
 - `scripts/dev-db.ts` - starts a local embedded Postgres on port 5433 (data in `.data/pg`).
 
 ## Tenant isolation (do not weaken)
@@ -31,7 +32,7 @@ Architecture doc (source of truth for design decisions): https://claude.ai/artif
 - `npm install`
 - `npm run db:start` (keep running in its own terminal; first run creates the database and roles)
 - `npm run db:migrate`
-- `npm run dev` (API on :4000, admin on :3000, hotel sites on :3001)
+- `npm run dev` (API on :4000, admin on :3000, hotel sites on :3001, booking engine on :3002)
 - `npm test` (starts its own throwaway Postgres)
 - `npm run typecheck`
 
@@ -39,6 +40,14 @@ Architecture doc (source of truth for design decisions): https://claude.ai/artif
 - Pages hold `draft` and `published` JSON arrays of sections. Publish copies draft to published for every page in one transaction.
 - Media: uploads are sniffed by magic bytes (never trust the declared type), stored via `Storage` (local disk now, S3 later), served at `/media/<tenantId>/<id>`.
 - Preview links use short-lived HMAC tokens (`PREVIEW_SECRET`).
+
+## Booking engine
+- Pricing rules live in `apps/api/src/booking/pricing.ts` (pure functions, unit-tested). Money is integer paise.
+- GST per room-night by slab (`property.tax_slabs`, default 5% up to Rs 7,500, 18% above). Confirm current rates with a CA before going live.
+- Inventory: `inventory_day` rows (missing row = all units open). Bookings take units with a guarded UPDATE so the last room cannot be sold twice.
+- Pay now = 15-minute hold (`held`), confirmed by a verified gateway signature; `expire_booking_holds()` releases unpaid holds (API runs it every minute).
+- Payments go to the hotel's own gateway (`gateway_account`, secrets AES-GCM encrypted with `SECRETS_KEY`). `demo` provider simulates payments for demos.
+- Guests manage bookings with reference + secret token (only its hash is stored).
 
 ## Conventions
 - TypeScript strict. Validate request bodies with zod. Money as integer minor units (paise) when pricing arrives.
