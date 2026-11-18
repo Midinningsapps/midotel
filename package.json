@@ -15,10 +15,11 @@
     "db:migrate": "npm run migrate -w @midotel/db",
     "dev:api": "npm run dev -w @midotel/api",
     "dev:admin": "npm run dev -w @midotel/admin",
-    "dev": "concurrently -n api,admin,site -c blue,green,magenta \"npm run dev:api\" \"npm run dev:admin\" \"npm run dev:site\"",
+    "dev": "concurrently -n api,admin,site,booking -c blue,green,magenta,yellow \"npm run dev:api\" \"npm run dev:admin\" \"npm run dev:site\" \"npm run dev:booking\"",
     "test": "npm run test -w @midotel/api",
     "typecheck": "npm run typecheck --workspaces --if-present",
-    "dev:site": "npm run dev -w @midotel/site"
+    "dev:site": "npm run dev -w @midotel/site",
+    "dev:booking": "npm run dev -w @midotel/booking"
   },
   "devDependencies": {
     "concurrently": "^9.2.1",
