@@ -184,6 +184,8 @@ export function Website({ propertyId }: { propertyId: string }) {
             ))}
           </ul>
           <button onClick={addPage}>+ Add page</button>
+          <h2 style={{ marginTop: 24 }}>Web address</h2>
+          <Domains propertyId={propertyId} />
           <h2 style={{ marginTop: 24 }}>Look</h2>
           <TokensForm tokens={site.tokens} onSave={saveTokens} />
         </aside>
@@ -300,6 +302,51 @@ function TokensForm({ tokens, onSave }: { tokens: ThemeTokens; onSave: (t: Theme
       >
         {saved ? 'Saved' : 'Save look'}
       </button>
+    </div>
+  );
+}
+
+interface Domain {
+  id: string;
+  hostname: string;
+  purpose: 'website' | 'booking';
+}
+
+function Domains({ propertyId }: { propertyId: string }) {
+  const [items, setItems] = useState<Domain[]>([]);
+  const [host, setHost] = useState('');
+  const [error, setError] = useState('');
+  const load = () => api<Domain[]>(`/properties/${propertyId}/domains`).then(setItems).catch(() => {});
+  useEffect(() => {
+    load();
+  }, [propertyId]);
+  async function add(e: React.FormEvent) {
+    e.preventDefault();
+    setError('');
+    try {
+      await api(`/properties/${propertyId}/domains`, { method: 'POST', body: { hostname: host.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, ''), purpose: 'website' } });
+      setHost('');
+      load();
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  }
+  return (
+    <div>
+      {items.map((d) => (
+        <p key={d.id} style={{ margin: '4px 0', wordBreak: 'break-all' }}>
+          <a href={`https://${d.hostname}`} target="_blank" rel="noreferrer">
+            {d.hostname}
+          </a>
+        </p>
+      ))}
+      {items.length === 0 && <p className="muted">No address yet.</p>}
+      <form onSubmit={add} className="grid" style={{ gridTemplateColumns: '1fr', marginTop: 8 }}>
+        <input value={host} onChange={(e) => setHost(e.target.value)} placeholder="www.yourhotel.com" required />
+        <button>Add address</button>
+        {error && <span className="error">{error}</span>}
+        <span className="muted">Point the address to Midotel in your domain's DNS settings first.</span>
+      </form>
     </div>
   );
 }

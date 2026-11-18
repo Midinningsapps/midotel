@@ -1,0 +1,98 @@
+# Midotel demo on one server: Postgres, API, admin, hotel websites, booking engine, and Caddy for HTTPS.
+# Usage (on the server, in this folder): cp .env.example .env, fill it in, then: docker compose up -d --build
+name: midotel
+
+x-app: &app
+  image: midotel-app
+  restart: unless-stopped
+  env_file: .env
+  depends_on:
+    migrate:
+      condition: service_completed_successfully
+
+services:
+  db:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: midotel
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${DB_ADMIN_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d midotel']
+      interval: 5s
+      retries: 20
+
+  migrate:
+    image: midotel-app
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+      args:
+        NEXT_PUBLIC_SITE_URL: https://sites.${DOMAIN}
+    env_file: .env
+    environment:
+      DATABASE_ADMIN_URL: postgres://postgres:${DB_ADMIN_PASSWORD}@db:5432/midotel
+      APP_DB_PASSWORD: ${DB_APP_PASSWORD}
+    command: ['node', 'packages/db/src/migrate-cli.ts']
+    depends_on:
+      db:
+        condition: service_healthy
+
+  api:
+    <<: *app
+    command: ['node', 'apps/api/src/server.ts']
+    environment:
+      NODE_ENV: production
+      API_HOST: 0.0.0.0
+      API_PORT: '4000'
+      DATABASE_URL: postgres://midotel_app:${DB_APP_PASSWORD}@db:5432/midotel
+      MEDIA_DIR: /data/media
+      MAIL_DIR: /data/mail
+      WHATSAPP_DIR: /data/whatsapp
+      CHANNEL_SIM_DIR: /data/channel
+      PUBLIC_API_URL: https://api.${DOMAIN}
+      BOOKING_PUBLIC_URL: https://book.${DOMAIN}
+      ADMIN_PUBLIC_URL: https://app.${DOMAIN}
+    volumes:
+      - appdata:/data
+
+  admin:
+    <<: *app
+    working_dir: /app/apps/admin
+    command: ['npx', 'next', 'start', '--port', '3000']
+
+  site:
+    <<: *app
+    working_dir: /app/apps/site
+    command: ['npx', 'next', 'start', '--port', '3001']
+    environment:
+      API_INTERNAL_URL: http://api:4000
+      BOOKING_URL: https://book.${DOMAIN}
+      SITE_PLATFORM_HOSTS: sites.${DOMAIN},site,localhost
+
+  booking:
+    <<: *app
+    working_dir: /app/apps/booking
+    command: ['npx', 'next', 'start', '--port', '3002']
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - '80:80'
+      - '443:443'
+    environment:
+      DOMAIN: ${DOMAIN}
+      ACME_EMAIL: ${ACME_EMAIL}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddydata:/data
+    depends_on: [api, admin, site, booking]
+
+volumes:
+  pgdata:
+  appdata:
+  caddydata:

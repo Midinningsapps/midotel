@@ -12,7 +12,7 @@ const pool = createPool(
 );
 const app = await buildApp({ pool, logger: true });
 const port = Number(process.env.API_PORT ?? 4000);
-await app.listen({ port, host: '127.0.0.1' });
+await app.listen({ port, host: process.env.API_HOST ?? '127.0.0.1' });
 
 // Release rooms held by guests who never finished paying.
 const sweeper = setInterval(() => {

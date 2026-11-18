@@ -34,4 +34,11 @@ export async function publicRoutes(app: FastifyInstance) {
     reply.header('cache-control', 'no-store');
     return { purpose: 'website', ...data };
   });
+
+  // Asked by the HTTPS proxy before it requests a certificate for a hotel's domain, so only known domains get one.
+  app.get('/domain-check', async (req, reply) => {
+    const { domain } = z.object({ domain: z.string().min(1).max(253) }).parse(req.query);
+    const { rows } = await pool.query('SELECT 1 FROM resolve_hostname($1)', [domain.toLowerCase()]);
+    return rows.length ? { ok: true } : reply.status(404).send({ ok: false });
+  });
 }

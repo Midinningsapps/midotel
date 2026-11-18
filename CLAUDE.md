@@ -63,6 +63,12 @@ Architecture doc (source of truth for design decisions): https://claude.ai/artif
 - Known gap: expired pay-now holds do not trigger an availability push (next rate change or full sync corrects it).
 - zod: never call `.partial()` on a schema with `.default()` for PATCH bodies; defaults would overwrite stored values.
 
+## Deployment (demo)
+- `deploy/`: one Dockerfile for the monorepo, `docker-compose.yml` (Postgres, migrate, api, admin, site, booking, Caddy), `Caddyfile`.
+- Caddy issues certificates for platform hosts and, on demand, for hotel domains approved by `GET /public/domain-check`.
+- `apps/site/proxy.ts` rewrites hotel hosts to `/s/<host>`; platform hosts listed in `SITE_PLATFORM_HOSTS`.
+- Guide for the owner: `docs/deploy-demo.md`. Docker is not installed on the dev Mac, so the image has not been built locally.
+
 ## Conventions
 - TypeScript strict. Validate request bodies with zod. Money as integer minor units (paise) when pricing arrives.
 - Migrations are append-only: never edit an applied migration; add `NNNN_name.sql`.

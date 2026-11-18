@@ -11,3 +11,4 @@ next-env.d.ts
 *.tsbuildinfo
 .data-db.log
 .dev-*.log
+deploy/.env
